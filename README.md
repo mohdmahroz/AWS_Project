@@ -1,14 +1,82 @@
-# Welcome to your CDK TypeScript project
+# Sentinel – Website Health Monitoring Platform
 
-This is a blank project for CDK development with TypeScript.
+Sentinel is a serverless website health monitoring platform built on
+Amazon Web Services (AWS). The project is developed as part of the
+NIT6150 Advanced Project at Victoria University.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+The platform is designed to monitor the availability and performance
+of public websites using AWS Lambda and AWS CDK. The infrastructure is
+defined using Infrastructure-as-Code (IaC), allowing the system to be
+reproducibly deployed and managed.
 
-## Useful commands
+---
 
-* `npm run build`   type-check the project
-* `npm run watch`   watch for changes and type-check
-* `npm run test`    perform the jest unit tests
-* `npx cdk deploy`  deploy this stack to your default AWS account/region
-* `npx cdk diff`    compare deployed stack with current state
-* `npx cdk synth`   emits the synthesized CloudFormation template
+## Project Overview
+
+Websites are critical infrastructure for modern organisations.
+Even short periods of downtime or degraded performance can affect
+users, revenue, and trust.
+
+Sentinel aims to provide a lightweight, serverless monitoring platform
+that can automatically check public websites and measure their health.
+
+The complete project will be developed in three phases:
+
+- **Phase 1:** Canary Lambda
+- **Phase 2:** Crawler, Scheduling, Dashboard, and Multi-Region Deployment
+- **Phase 3:** Alarms, Notifications, and Incident Logging
+
+This README currently documents the implementation completed for
+**Phase 1**.
+
+---
+
+# Phase 1 – Canary Lambda
+
+## Objective
+
+The objective of Phase 1 is to create a single-region AWS Lambda
+function that checks a public website and calculates:
+
+- Website availability
+- HTTP status code
+- Response latency
+
+The Lambda infrastructure is deployed using AWS CDK.
+
+According to the project proposal, Phase 1 requires a CDK application
+that deploys a single-region Lambda function, checks a public website,
+computes availability and latency, documents the IAM execution role,
+and provides an initial project README.
+
+---
+
+# Architecture
+
+The Phase 1 architecture is:
+
+```text
+                  AWS Cloud
+                     |
+                     |
+              AWS Lambda
+           SentinelMonitorLambda
+                     |
+                     |
+              HTTPS Request
+                     |
+                     v
+             Public Website
+             https://example.com
+                     |
+                     v
+              Health Response
+                     |
+          +----------+----------+
+          |                     |
+      Availability           Latency
+          |                     |
+          +----------+----------+
+                     |
+                     v
+              CloudWatch Logs
