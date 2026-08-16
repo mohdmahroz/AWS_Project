@@ -1,1 +1,1 @@
-{"statusCode":200,"body":"{\"url\":\"https://example.com\",\"available\":true,\"statusCode\":200,\"latencyMs\":132}"}
+{"statusCode":200,"body":"{\"url\":\"https://google.com\",\"available\":true,\"statusCode\":301,\"latencyMs\":413}"}

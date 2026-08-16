@@ -1,33 +1,70 @@
 # Sentinel – Website Health Monitoring Platform
 
-Sentinel is a serverless website health monitoring platform built on
-Amazon Web Services (AWS). The project is developed as part of the
-NIT6150 Advanced Project at Victoria University.
+Sentinel is a serverless website health monitoring platform built using
+Amazon Web Services (AWS) and AWS Cloud Development Kit (CDK).
 
-The platform is designed to monitor the availability and performance
-of public websites using AWS Lambda and AWS CDK. The infrastructure is
-defined using Infrastructure-as-Code (IaC), allowing the system to be
-reproducibly deployed and managed.
+The project is developed as part of the NIT6150 Advanced Project at
+Victoria University.
+
+Sentinel automatically monitors public websites and collects information
+about website availability, HTTP latency, DNS resolution performance,
+and SSL certificate validity.
 
 ---
 
-## Project Overview
+# Project Status
 
-Websites are critical infrastructure for modern organisations.
-Even short periods of downtime or degraded performance can affect
-users, revenue, and trust.
+| Phase | Status |
+|---|---|
+| Phase 1 – Canary Lambda | ✅ Completed |
+| Phase 2 – Monitoring, Dashboard and Multi-Region | ✅ Completed |
+| Phase 3 – Alarms, Notifications and Incident Logging | 🔜 Next |
 
-Sentinel aims to provide a lightweight, serverless monitoring platform
-that can automatically check public websites and measure their health.
+---
 
-The complete project will be developed in three phases:
+# Project Overview
 
-- **Phase 1:** Canary Lambda
-- **Phase 2:** Crawler, Scheduling, Dashboard, and Multi-Region Deployment
-- **Phase 3:** Alarms, Notifications, and Incident Logging
+The project is developed in multiple phases.
 
-This README currently documents the implementation completed for
-**Phase 1**.
+## Phase 1
+
+Phase 1 implements a basic AWS Lambda website health checker.
+
+The Lambda checks a public website and measures:
+
+- Website availability
+- HTTP status code
+- HTTP response latency
+
+## Phase 2
+
+Phase 2 extends the system into an automated multi-site monitoring
+platform.
+
+Phase 2 includes:
+
+- Amazon S3 website configuration
+- Multi-site website monitoring
+- DNS resolution monitoring
+- SSL certificate monitoring
+- Custom CloudWatch metrics
+- CloudWatch Dashboard
+- Amazon EventBridge scheduling
+- Five-minute monitoring interval
+- Multi-region deployment
+- Sydney deployment
+- Singapore deployment
+
+## Phase 3
+
+Phase 3 will introduce:
+
+- CloudWatch Alarms
+- Amazon SNS notifications
+- DynamoDB incident logging
+- Failure alerts
+- Operational runbook
+- End-to-end incident testing
 
 ---
 
@@ -35,48 +72,37 @@ This README currently documents the implementation completed for
 
 ## Objective
 
-The objective of Phase 1 is to create a single-region AWS Lambda
-function that checks a public website and calculates:
+The objective of Phase 1 was to create a serverless AWS Lambda function
+that can monitor a public website.
 
-- Website availability
-- HTTP status code
-- Response latency
+The Lambda sends an HTTPS request to the configured website and
+determines whether the website is available.
 
-The Lambda infrastructure is deployed using AWS CDK.
+It also measures the HTTP response latency.
 
-According to the project proposal, Phase 1 requires a CDK application
-that deploys a single-region Lambda function, checks a public website,
-computes availability and latency, documents the IAM execution role,
-and provides an initial project README.
-
----
-
-# Architecture
-
-The Phase 1 architecture is:
+## Phase 1 Architecture
 
 ```text
-                  AWS Cloud
+                 AWS Cloud
                      |
-                     |
+                     v
               AWS Lambda
-           SentinelMonitorLambda
+        SentinelMonitorLambda
                      |
-                     |
+                     v
               HTTPS Request
                      |
                      v
-             Public Website
-             https://example.com
+              Public Website
                      |
                      v
-              Health Response
-                     |
-          +----------+----------+
-          |                     |
-      Availability           Latency
-          |                     |
-          +----------+----------+
-                     |
-                     v
-              CloudWatch Logs
+             Health Response
+                /       \
+               /         \
+              v           v
+        Availability    Latency
+               \         /
+                \       /
+                 v     v
+              CloudWatch
+                  Logs

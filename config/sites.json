@@ -1,0 +1,20 @@
+{
+  "sites": [
+    {
+      "name": "Example",
+      "url": "https://example.com"
+    },
+    {
+      "name": "Google",
+      "url": "https://www.google.com"
+    },
+    {
+      "name": "AWS",
+      "url": "https://aws.amazon.com"
+    },
+    {
+        "name": "Invalid Test",
+        "url": "https://this-domain-definitely-does-not-exist-123456789.com"
+    }
+  ]
+}
