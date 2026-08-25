@@ -18,7 +18,7 @@ and SSL certificate validity.
 |---|---|
 | Phase 1 – Canary Lambda | ✅ Completed |
 | Phase 2 – Monitoring, Dashboard and Multi-Region | ✅ Completed |
-| Phase 3 – Alarms, Notifications and Incident Logging | 🔜 Next |
+| Phase 3 – Alarms, Notifications and Incident Logging | ✅ Completed |
 
 ---
 
