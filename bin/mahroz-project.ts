@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib/core';
-import { MahrozProjectStack } from '../lib/mahroz-project';
+import { MahrozProjectStack } from '../stack/mahroz-stack';
 
 const app = new cdk.App();
 new MahrozProjectStack(app, 'MahrozProjectStack', {

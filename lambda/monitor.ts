@@ -1,19 +1,24 @@
-import https from 'https';
-import dns from 'dns/promises';
-import tls from 'tls';
+import https from "https";
+import dns from "dns/promises";
+import tls from "tls";
 
-import {
-  S3Client,
-  GetObjectCommand,
-} from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 import {
   CloudWatchClient,
   PutMetricDataCommand,
-} from '@aws-sdk/client-cloudwatch';
+} from "@aws-sdk/client-cloudwatch";
 
 const s3 = new S3Client({});
 const cloudwatch = new CloudWatchClient({});
+
+const dynamodb = new DynamoDBClient({});
+
+const documentClient = DynamoDBDocumentClient.from(dynamodb);
 
 interface Site {
   name: string;
@@ -27,9 +32,7 @@ interface SiteConfig {
 /**
  * Measure DNS resolution time for a hostname.
  */
-async function measureDnsResolution(
-  hostname: string
-): Promise<number> {
+async function measureDnsResolution(hostname: string): Promise<number> {
   const startTime = Date.now();
 
   await dns.lookup(hostname);
@@ -41,9 +44,7 @@ async function measureDnsResolution(
  * Get the number of days remaining
  * before the SSL certificate expires.
  */
-async function getCertificateDaysRemaining(
-  hostname: string
-): Promise<number> {
+async function getCertificateDaysRemaining(hostname: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const socket = tls.connect(
       {
@@ -55,64 +56,40 @@ async function getCertificateDaysRemaining(
       },
       () => {
         try {
-          const certificate =
-            socket.getPeerCertificate();
+          const certificate = socket.getPeerCertificate();
 
-          if (
-            !certificate ||
-            !certificate.valid_to
-          ) {
+          if (!certificate || !certificate.valid_to) {
             socket.destroy();
 
-            reject(
-              new Error(
-                'SSL certificate information unavailable'
-              )
-            );
+            reject(new Error("SSL certificate information unavailable"));
 
             return;
           }
 
-          const expiryDate =
-            new Date(certificate.valid_to);
+          const expiryDate = new Date(certificate.valid_to);
 
           const now = new Date();
 
-          const millisecondsRemaining =
-            expiryDate.getTime() -
-            now.getTime();
+          const millisecondsRemaining = expiryDate.getTime() - now.getTime();
 
-          const daysRemaining =
-            millisecondsRemaining /
-            (1000 * 60 * 60 * 24);
+          const daysRemaining = millisecondsRemaining / (1000 * 60 * 60 * 24);
 
           socket.destroy();
 
-          resolve(
-            Number(
-              Math.max(
-                0,
-                daysRemaining
-              ).toFixed(2)
-            )
-          );
+          resolve(Number(Math.max(0, daysRemaining).toFixed(2)));
         } catch (error) {
           socket.destroy();
           reject(error);
         }
-      }
+      },
     );
 
-    socket.on('error', reject);
+    socket.on("error", reject);
 
-    socket.on('timeout', () => {
+    socket.on("timeout", () => {
       socket.destroy();
 
-      reject(
-        new Error(
-          'SSL certificate check timed out'
-        )
-      );
+      reject(new Error("SSL certificate check timed out"));
     });
   });
 }
@@ -126,24 +103,24 @@ async function publishMetrics(
   available: boolean,
   latencyMs: number,
   dnsResolutionMs: number,
-  sslCertificateDaysRemaining: number
+  sslCertificateDaysRemaining: number,
 ) {
   await cloudwatch.send(
     new PutMetricDataCommand({
-      Namespace: 'Sentinel/WebsiteHealth',
+      Namespace: "Sentinel/WebsiteHealth",
 
       MetricData: [
         // Availability
         {
-          MetricName: 'Availability',
+          MetricName: "Availability",
 
           Value: available ? 1 : 0,
 
-          Unit: 'Count',
+          Unit: "Count",
 
           Dimensions: [
             {
-              Name: 'Site',
+              Name: "Site",
               Value: site.name,
             },
           ],
@@ -151,15 +128,15 @@ async function publishMetrics(
 
         // HTTP latency
         {
-          MetricName: 'Latency',
+          MetricName: "Latency",
 
           Value: latencyMs,
 
-          Unit: 'Milliseconds',
+          Unit: "Milliseconds",
 
           Dimensions: [
             {
-              Name: 'Site',
+              Name: "Site",
               Value: site.name,
             },
           ],
@@ -167,15 +144,15 @@ async function publishMetrics(
 
         // DNS resolution time
         {
-          MetricName: 'DNSResolutionTime',
+          MetricName: "DNSResolutionTime",
 
           Value: dnsResolutionMs,
 
-          Unit: 'Milliseconds',
+          Unit: "Milliseconds",
 
           Dimensions: [
             {
-              Name: 'Site',
+              Name: "Site",
               Value: site.name,
             },
           ],
@@ -183,24 +160,63 @@ async function publishMetrics(
 
         // SSL certificate days remaining
         {
-          MetricName:
-            'SSLCertificateDaysRemaining',
+          MetricName: "SSLCertificateDaysRemaining",
 
-          Value:
-            sslCertificateDaysRemaining,
+          Value: sslCertificateDaysRemaining,
 
-          Unit: 'Count',
+          Unit: "Count",
 
           Dimensions: [
             {
-              Name: 'Site',
+              Name: "Site",
               Value: site.name,
             },
           ],
         },
       ],
-    })
+    }),
   );
+}
+
+async function logIncident(
+  site: Site,
+  latencyMs: number,
+  statusCode: number | null,
+  error?: string,
+) {
+  const tableName = process.env.INCIDENTS_TABLE;
+
+  if (!tableName) {
+    throw new Error("INCIDENTS_TABLE is not configured");
+  }
+
+  const incidentId = `${site.name}-${Date.now()}`;
+
+  await documentClient.send(
+    new PutCommand({
+      TableName: tableName,
+
+      Item: {
+        incidentId,
+
+        siteName: site.name,
+
+        url: site.url,
+
+        status: "DOWN",
+
+        statusCode,
+
+        latencyMs,
+
+        error: error ?? null,
+
+        detectedAt: new Date().toISOString(),
+      },
+    }),
+  );
+
+  console.log("Incident logged:", incidentId);
 }
 
 export const handler = async () => {
@@ -208,9 +224,7 @@ export const handler = async () => {
   const key = process.env.SITES_KEY;
 
   if (!bucket || !key) {
-    throw new Error(
-      'S3 configuration is missing'
-    );
+    throw new Error("S3 configuration is missing");
   }
 
   // ==========================================
@@ -224,22 +238,16 @@ export const handler = async () => {
 
   const result = await s3.send(command);
 
-  const body =
-    await result.Body?.transformToString();
+  const body = await result.Body?.transformToString();
 
   if (!body) {
-    throw new Error(
-      'Empty sites.json file'
-    );
+    throw new Error("Empty sites.json file");
   }
 
-  const config: SiteConfig =
-    JSON.parse(body);
+  const config: SiteConfig = JSON.parse(body);
 
   if (!Array.isArray(config.sites)) {
-    throw new Error(
-      'Invalid sites.json format'
-    );
+    throw new Error("Invalid sites.json format");
   }
 
   const results = [];
@@ -256,40 +264,31 @@ export const handler = async () => {
       // PARSE URL
       // ========================================
 
-      const parsedUrl =
-        new URL(site.url);
+      const parsedUrl = new URL(site.url);
 
       // ========================================
       // DNS RESOLUTION
       // ========================================
 
-      const dnsResolutionMs =
-        await measureDnsResolution(
-          parsedUrl.hostname
-        );
+      const dnsResolutionMs = await measureDnsResolution(parsedUrl.hostname);
 
       // ========================================
       // SSL CERTIFICATE
       // ========================================
 
-      const sslCertificateDaysRemaining =
-        await getCertificateDaysRemaining(
-          parsedUrl.hostname
-        );
+      const sslCertificateDaysRemaining = await getCertificateDaysRemaining(
+        parsedUrl.hostname,
+      );
 
       // ========================================
       // HTTPS HEALTH CHECK
       // ========================================
 
-      const response =
-        await checkWebsite(site.url);
+      const response = await checkWebsite(site.url);
 
-      const latencyMs =
-        Date.now() - startTime;
+      const latencyMs = Date.now() - startTime;
 
-      const available =
-        response.statusCode >= 200 &&
-        response.statusCode < 400;
+      const available = response.statusCode >= 200 && response.statusCode < 400;
 
       // ========================================
       // HEALTH RESULT
@@ -302,8 +301,7 @@ export const handler = async () => {
 
         available,
 
-        statusCode:
-          response.statusCode,
+        statusCode: response.statusCode,
 
         latencyMs,
 
@@ -311,6 +309,15 @@ export const handler = async () => {
 
         sslCertificateDaysRemaining,
       };
+
+      if (!available) {
+        await logIncident(
+          site,
+          latencyMs,
+          response.statusCode,
+          `HTTP ${response.statusCode}`,
+        );
+      }
 
       // ========================================
       // PUBLISH CLOUDWATCH METRICS
@@ -321,19 +328,14 @@ export const handler = async () => {
         available,
         latencyMs,
         dnsResolutionMs,
-        sslCertificateDaysRemaining
+        sslCertificateDaysRemaining,
       );
 
-      console.log(
-        'Website health check:',
-        health
-      );
+      console.log("Website health check:", health);
 
       results.push(health);
-
     } catch (error) {
-      const latencyMs =
-        Date.now() - startTime;
+      const latencyMs = Date.now() - startTime;
 
       const health = {
         name: site.name,
@@ -348,31 +350,20 @@ export const handler = async () => {
 
         dnsResolutionMs: null,
 
-        sslCertificateDaysRemaining:
-          null,
+        sslCertificateDaysRemaining: null,
 
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Unknown error',
+        error: error instanceof Error ? error.message : "Unknown error",
       };
+
+      await logIncident(site, latencyMs, null, health.error);
 
       // ========================================
       // PUBLISH FAILED WEBSITE METRICS
       // ========================================
 
-      await publishMetrics(
-        site,
-        false,
-        latencyMs,
-        0,
-        0
-      );
+      await publishMetrics(site, false, latencyMs, 0, 0);
 
-      console.error(
-        'Website health check failed:',
-        health
-      );
+      console.error("Website health check failed:", health);
 
       results.push(health);
     }
@@ -386,8 +377,7 @@ export const handler = async () => {
     statusCode: 200,
 
     body: JSON.stringify({
-      checkedAt:
-        new Date().toISOString(),
+      checkedAt: new Date().toISOString(),
 
       sites: results,
     }),
@@ -397,48 +387,24 @@ export const handler = async () => {
 /**
  * Perform HTTPS request and return HTTP status.
  */
-function checkWebsite(
-  url: string
-): Promise<{ statusCode: number }> {
-  return new Promise(
-    (resolve, reject) => {
-      const request = https.get(
-        url,
-        (response) => {
-          response.on(
-            'data',
-            () => {}
-          );
+function checkWebsite(url: string): Promise<{ statusCode: number }> {
+  return new Promise((resolve, reject) => {
+    const request = https.get(url, (response) => {
+      response.on("data", () => {});
 
-          response.on(
-            'end',
-            () => {
-              resolve({
-                statusCode:
-                  response.statusCode ?? 0,
-              });
-            }
-          );
-        }
-      );
+      response.on("end", () => {
+        resolve({
+          statusCode: response.statusCode ?? 0,
+        });
+      });
+    });
 
-      request.on(
-        'error',
-        reject
-      );
+    request.on("error", reject);
 
-      request.setTimeout(
-        10000,
-        () => {
-          request.destroy();
+    request.setTimeout(10000, () => {
+      request.destroy();
 
-          reject(
-            new Error(
-              'Request timed out'
-            )
-          );
-        }
-      );
-    }
-  );
+      reject(new Error("Request timed out"));
+    });
+  });
 }
