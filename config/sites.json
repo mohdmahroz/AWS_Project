@@ -2,7 +2,7 @@
   "sites": [
     {
       "name": "Example",
-      "url": "https://example.com"
+      "url": "https://this-domain-definitely-does-not-exist-123456789.com"
     },
     {
       "name": "Google",
@@ -11,14 +11,6 @@
     {
       "name": "AWS",
       "url": "https://aws.amazon.com"
-    },
-    {
-        "name": "Invalid Test",
-        "url": "https://this-domain-definitely-does-not-exist-123456789.com"
-    },
-    {
-      "name": "Flipkart",
-      "url": "https://flipkart.com"
     }
   ]
 }

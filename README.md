@@ -63,8 +63,7 @@ Phase 3 will introduce:
 - Amazon SNS notifications
 - DynamoDB incident logging
 - Failure alerts
-- Operational runbook
-- End-to-end incident testing
+
 
 ---
 
